@@ -225,6 +225,25 @@ $$
 
 ---
 
+## Replay Verification
+
+Two independent executions of `apps/demo_train_step.fard` produced identical:
+
+- `fard_run_digest`
+- `result.json`
+- `trace.ndjson`
+- `module_graph.json`
+- `digests.json`
+
+Verified equality artifact:
+
+```text
+out/verify.json
+ok: true
+```
+
+This establishes byte-identical deterministic replay under `fardrun 1.6.0`.
+
 ## Status
 
 Operational. Deterministic. Closed.
