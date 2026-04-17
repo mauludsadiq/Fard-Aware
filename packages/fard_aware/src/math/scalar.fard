@@ -1,0 +1,42 @@
+import("std/list") as list
+import("std/int") as int
+import("std/math") as math
+import("std/str") as str
+import("std/bytes") as bytes
+import("std/float") as float
+
+fn zero() { 0.0 }
+fn one() { 1.0 }
+fn from_i64(n) { n * 1.0 }
+fn to_i64(x) { math.floor(x) }
+fn add(a, b) { a + b }
+fn sub(a, b) { a - b }
+fn mul(a, b) { a * b }
+fn div(a, b) { a / b }
+fn neg(a) { -a }
+fn abs(a) { math.abs(a) }
+fn max(a, b) { math.max(a, b) }
+fn min(a, b) { math.min(a, b) }
+  fn cmp(a, b) { if a < b then "lt" else (if a > b then "gt" else "eq") }
+fn exp(a) { math.exp(a) }
+fn log(a) { math.log(a) }
+fn sqrt(a) { math.sqrt(a) }
+fn pow_nat(a, n) {
+  if n <= 0 then 1.0 else
+    let xs = list.range(0, n) in
+    list.fold(xs, 1.0, fn(acc, _) { acc * a })
+}
+fn is_zero(a) { a == 0.0 }
+fn encode(a) { bytes.of_str(str.from(a)) }
+fn decode(bs) { float.parse(bytes.to_str(bs)).v }
+fn eps() { 0.000001 }
+fn pos_inf() { math.inf }
+fn neg_inf() { -math.inf }
+fn nan_canon() { float.nan() }
+
+export {
+  zero, one, from_i64, to_i64,
+  add, sub, mul, div, neg, abs, max, min, cmp,
+  exp, log, sqrt, pow_nat,
+  is_zero, encode, decode, eps, pos_inf, neg_inf, nan_canon
+}

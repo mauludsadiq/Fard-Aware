@@ -1,0 +1,63 @@
+import("std/list") as list
+import("../actor/policy") as actor
+import("../rssm/core") as rssm_core
+import("../rssm/prior") as prior
+import("../rssm/latent") as latent
+import("../heads/reward") as reward_head
+import("../heads/continuation") as cont_head
+import("../projections/reward_continuation") as proj
+import("../receipt/encode") as receipt
+import("../core/util") as util
+
+fn rollout(model, actor_params, s0, horizon, rng0, receipt0) {
+  let init = {
+    s: s0,
+    states: [s0],
+    actions: [],
+    r_hat: [],
+    c_hat: [],
+    rng: rng0,
+    receipt: receipt0
+  }
+  let out = list.fold(util.range0(horizon), init, fn(acc, t) {
+    let dist_a = actor.policy(actor_params, acc.s)
+    let a_t = actor.mode(dist_a)
+    let h2 = rssm_core.f_core(model.core, acc.s.h, acc.s.z, a_t)
+    let dist_z = prior.unimix(prior.p_prior(model.prior, h2), 0.01)
+    let z_draw = latent.sample_stochastic_st(dist_z, acc.rng)
+    let s2 = { h: h2, z: z_draw.z }
+    let pred_r = reward_head.decode_r(model.reward, acc.s)
+    let pred_c = cont_head.decode_c(model.cont, acc.s)
+    let r_t = proj.expected_reward(pred_r)
+    let c_t = proj.expected_cont(pred_c)
+    let pay = receipt.payload(
+      "fard_aware/imagination",
+      t,
+      [receipt.digest_tensor(acc.s.h), receipt.digest_tensor(acc.s.z)],
+      [receipt.digest_tensor(s2.h), receipt.digest_tensor(s2.z), receipt.digest_scalar(r_t), receipt.digest_scalar(c_t)],
+      util.digest(model),
+      acc.rng,
+      z_draw.rng,
+      { action_dist: dist_a, prior: dist_z }
+    )
+    {
+      s: s2,
+      states: list.append(acc.states, s2),
+      actions: list.append(acc.actions, a_t),
+      r_hat: list.append(acc.r_hat, r_t),
+      c_hat: list.append(acc.c_hat, c_t),
+      rng: z_draw.rng,
+      receipt: receipt.step_receipt(acc.receipt, pay)
+    }
+  })
+  {
+    states: out.states,
+    actions: out.actions,
+    r_hat: out.r_hat,
+    c_hat: out.c_hat,
+    rng: out.rng,
+    receipt: out.receipt
+  }
+}
+
+export { rollout }

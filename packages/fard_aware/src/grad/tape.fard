@@ -1,0 +1,27 @@
+import("std/list") as list
+import("../params/schema") as ps
+import("../core/util") as util
+
+fn build_tape(loss_fn, params, inputs, eps) {
+  { loss_fn: loss_fn, params: params, inputs: inputs, eps: eps }
+}
+
+fn reverse(tape, seed_grad) {
+  let base = tape.loss_fn(tape.params, tape.inputs)
+  list.map(util.range0(list.len(tape.params.values)), fn(i) {
+    let vals2 = list.set(tape.params.values, i, list.get(tape.params.values, i) + tape.eps)
+    let p2 = { spec: tape.params.spec, values: vals2 }
+    let loss2 = tape.loss_fn(p2, tape.inputs)
+    seed_grad * (loss2 - base) / tape.eps
+  })
+}
+
+fn grad(loss_fn, params, inputs, eps) {
+  reverse(build_tape(loss_fn, params, inputs, eps), 1.0)
+}
+
+fn digest_tape(tape) {
+  util.digest({ params: tape.params.values, inputs: tape.inputs, eps: tape.eps })
+}
+
+export { build_tape, reverse, grad, digest_tape }

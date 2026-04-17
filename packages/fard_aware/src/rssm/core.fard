@@ -1,0 +1,33 @@
+import("std/list") as list
+import("../params/schema") as ps
+import("../core/util") as util
+import("../tensor/ops") as tensor
+
+fn schema(h_dim, z_dim, a_dim) {
+  let in_dim = h_dim + z_dim + a_dim
+  ps.schema([
+    ps.block("w_h", [h_dim, in_dim]),
+    ps.block("b_h", [h_dim])
+  ])
+}
+
+fn init(seed, h_dim, z_dim, a_dim, scale) {
+  ps.seeded(schema(h_dim, z_dim, a_dim), seed, scale)
+}
+
+fn squash(x) {
+  x / (1.0 + (if x < 0.0 then -x else x))
+}
+
+fn f_core(params, h, z, a) {
+  let x = util.concat(util.concat(h.data, z.data), a.data)
+  let w = tensor.make([list.len(h.data), list.len(x)], ps.get_block(params, "w_h"))
+  let b = ps.get_block(params, "b_h")
+  tensor.make([list.len(h.data)], list.map(util.range0(list.len(h.data)), fn(i) {
+    squash(list.fold(util.range0(list.len(x)), list.get(b, i), fn(acc, j) {
+      acc + tensor.get(w, [i, j]) * list.get(x, j)
+    }))
+  }))
+}
+
+export { schema, init, squash, f_core }

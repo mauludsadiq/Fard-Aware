@@ -1,0 +1,68 @@
+import("std/list") as list
+import("std/math") as math
+import("../params/schema") as ps
+import("../tensor/ops") as tensor
+import("../core/util") as util
+import("../projections/reward_continuation") as proj
+
+fn schema(state_dim, bins) {
+  ps.schema([
+    ps.block("w_reward", [bins, state_dim]),
+    ps.block("b_reward", [bins])
+  ])
+}
+
+fn init(seed, state_dim, bins, scale) {
+  ps.seeded(schema(state_dim, bins), seed, scale)
+}
+
+fn state_vec(s) { util.concat(s.h.data, s.z.data) }
+
+fn symlog(x) {
+  let ax = if x < 0.0 then -x else x
+  let s = if x < 0.0 then -1.0 else 1.0
+  s * math.log(ax + 1.0)
+}
+
+fn symexp(y) {
+  let ay = if y < 0.0 then -y else y
+  let s = if y < 0.0 then -1.0 else 1.0
+  s * (math.exp(ay) - 1.0)
+}
+
+fn twohot(x, bins) {
+  let y = symlog(x)
+  let support = proj.reward_support(bins, -20.0, 20.0)
+  let idx = list.fold(util.range0(bins), 0, fn(acc, i) {
+    let si = list.get(support, i)
+    let sa = if si - y < 0.0 then -(si - y) else (si - y)
+    let ca = if list.get(support, acc) - y < 0.0 then -(list.get(support, acc) - y) else (list.get(support, acc) - y)
+    if sa < ca then i else acc
+  })
+  tensor.onehot(bins, idx)
+}
+
+fn decode_r(params, s) {
+  let st = state_vec(s)
+  let bins = list.get(ps.block_meta(params.spec, "b_reward").shape, 0)
+  let w = tensor.make([bins, list.len(st)], ps.get_block(params, "w_reward"))
+  let b = ps.get_block(params, "b_reward")
+  let logits = tensor.make([bins], list.map(util.range0(bins), fn(i) {
+    list.fold(util.range0(list.len(st)), list.get(b, i), fn(acc, j) {
+      acc + tensor.get(w, [i, j]) * list.get(st, j)
+    })
+  }))
+  { probs: tensor.softmax(logits), logits: logits }
+}
+
+fn ce(target, pred) {
+  list.fold(util.range0(list.len(target.data)), 0.0, fn(acc, i) {
+    let t = list.get(target.data, i)
+    let p = list.get(pred.probs.data, i)
+    if t == 0.0 then acc else acc - t * math.log(p)
+  })
+}
+
+fn loss_reward(target, pred) { ce(target, pred) }
+
+export { schema, init, state_vec, symlog, symexp, twohot, decode_r, ce, loss_reward }

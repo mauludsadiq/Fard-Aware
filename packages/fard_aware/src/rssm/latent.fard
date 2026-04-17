@@ -1,0 +1,10 @@
+import("std/list") as list
+import("../tensor/ops") as tensor
+import("../core/rng") as rng
+
+fn sample_stochastic_st(dist, rng0) {
+  let draw = rng.sample_categorical(dist.probs.data, rng0)
+  { z: tensor.onehot(list.len(dist.probs.data), draw.index), rng: draw.rng }
+}
+
+export { sample_stochastic_st }

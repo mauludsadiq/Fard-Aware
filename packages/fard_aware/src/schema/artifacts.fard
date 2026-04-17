@@ -1,0 +1,99 @@
+fn tensor_schema() {
+  {
+    kind: "tensor",
+    fields: [
+      { name: "shape", type: "List(Int)" },
+      { name: "data", type: "List(Float)" }
+    ]
+  }
+}
+
+fn params_schema() {
+  {
+    kind: "params",
+    fields: [
+      { name: "spec", type: "Record" },
+      { name: "values", type: "List(Float)" }
+    ]
+  }
+}
+
+fn receipt_payload_schema() {
+  {
+    kind: "receipt_payload",
+    fields: [
+      { name: "module_id", type: "Text" },
+      { name: "step_id", type: "Int" },
+      { name: "input_digests", type: "List(Text)" },
+      { name: "output_digests", type: "List(Text)" },
+      { name: "param_digest", type: "Text" },
+      { name: "rng_in", type: "Record" },
+      { name: "rng_out", type: "Record" },
+      { name: "metadata", type: "Record" }
+    ]
+  }
+}
+
+fn transition_schema() {
+  {
+    kind: "transition",
+    fields: [
+      { name: "obs", type: "Tensor" },
+      { name: "action", type: "Tensor" },
+      { name: "reward", type: "Float" },
+      { name: "cont", type: "Float" },
+      { name: "next_obs", type: "Tensor" },
+      { name: "step_index", type: "Int" }
+    ]
+  }
+}
+
+fn system_state_schema() {
+  {
+    kind: "system_state",
+    fields: [
+      { name: "world", type: "Record" },
+      { name: "actor", type: "Params" },
+      { name: "critic", type: "Params" },
+      { name: "opt", type: "Record" },
+      { name: "rng", type: "Record" },
+      { name: "receipt", type: "Text" },
+      { name: "step", type: "Int" }
+    ]
+  }
+}
+
+fn package_manifest() {
+  {
+    package: "fard_aware",
+    version: "1.0.0",
+    modules: [
+      "core/util",
+      "core/rng",
+      "math/scalar",
+      "tensor/ops",
+      "params/schema",
+      "receipt/encode",
+      "replay/replay",
+      "optimizer/adam",
+      "actor/policy",
+      "rssm/core",
+      "rssm/latent",
+      "rssm/prior",
+      "rssm/posterior",
+      "heads/observation",
+      "heads/reward",
+      "heads/continuation",
+      "worldmodel/loss",
+      "returns/lambda",
+      "projections/reward_continuation",
+      "grad/tape",
+      "imagination/rollout",
+      "trainer/state",
+      "trainer/step",
+      "schema/artifacts"
+    ]
+  }
+}
+
+export { tensor_schema, params_schema, receipt_payload_schema, transition_schema, system_state_schema, package_manifest }

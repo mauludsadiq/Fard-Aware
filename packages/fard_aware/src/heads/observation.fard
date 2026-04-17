@@ -1,0 +1,40 @@
+import("std/list") as list
+import("../params/schema") as ps
+import("../tensor/ops") as tensor
+import("../core/util") as util
+
+fn schema(state_dim, x_dim) {
+  ps.schema([
+    ps.block("w_obs", [x_dim, state_dim]),
+    ps.block("b_obs", [x_dim])
+  ])
+}
+
+fn init(seed, state_dim, x_dim, scale) {
+  ps.seeded(schema(state_dim, x_dim), seed, scale)
+}
+
+fn state_vec(s) { util.concat(s.h.data, s.z.data) }
+
+fn decode_x(params, s) {
+  let st = state_vec(s)
+  let x_dim = list.get(ps.block_meta(params.spec, "b_obs").shape, 0)
+  let w = tensor.make([x_dim, list.len(st)], ps.get_block(params, "w_obs"))
+  let b = ps.get_block(params, "b_obs")
+  let mean = tensor.make([x_dim], list.map(util.range0(x_dim), fn(i) {
+    list.fold(util.range0(list.len(st)), list.get(b, i), fn(acc, j) {
+      acc + tensor.get(w, [i, j]) * list.get(st, j)
+    })
+  }))
+  { mean: mean }
+}
+
+fn loss_recon(x, pred) {
+  let diffs = list.map(util.range0(list.len(x.data)), fn(i) {
+    let d = list.get(x.data, i) - list.get(pred.mean.data, i)
+    d * d
+  })
+  util.mean(diffs)
+}
+
+export { schema, init, state_vec, decode_x, loss_recon }

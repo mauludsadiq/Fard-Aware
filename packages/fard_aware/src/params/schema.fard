@@ -1,0 +1,63 @@
+import("std/list") as list
+import("std/rec") as rec
+import("std/str") as str
+import("../core/util") as util
+import("../core/rng") as rng
+
+fn block(name, shape) {
+  let size = util.product(shape)
+  { name: name, shape: shape, size: size }
+}
+
+fn schema(blocks) {
+  let offsets = list.fold(blocks, { off: 0, out: [] }, fn(acc, b) {
+    let row = { name: b.name, shape: b.shape, size: b.size, offset: acc.off }
+    { off: acc.off + b.size, out: list.append(acc.out, row) }
+  })
+  { blocks: offsets.out, size: offsets.off }
+}
+
+fn zeros(spec) {
+  { spec: spec, values: list.repeat(0.0, spec.size) }
+}
+
+fn seeded(spec, seed, scale) {
+  let init = { vals: [], rng: rng.make(seed) }
+  let out = list.fold(util.range0(spec.size), init, fn(acc, _) {
+    let draw = rng.next_float(acc.rng)
+    let v = (draw.value * 2.0 - 1.0) * scale
+    { vals: list.append(acc.vals, v), rng: draw.rng }
+  })
+  { spec: spec, values: out.vals }
+}
+
+fn block_meta(spec, name) {
+  let hit = list.find(spec.blocks, fn(b) { b.name == name })
+  if rec.has(hit, "some") then hit.some else { name: name, shape: [0], size: 0, offset: 0 }
+}
+
+fn get_block(params, name) {
+  let meta = block_meta(params.spec, name)
+  list.take(list.drop(params.values, meta.offset), meta.size)
+}
+
+fn set_block(params, name, vals) {
+  let meta = block_meta(params.spec, name)
+  let prefix = list.take(params.values, meta.offset)
+  let suffix = list.drop(params.values, meta.offset + meta.size)
+  { spec: params.spec, values: list.concat([prefix, vals, suffix]) }
+}
+
+fn flatten(params) {
+  params.values
+}
+
+fn from_flat(spec, values) {
+  { spec: spec, values: values }
+}
+
+fn named_shapes(spec) {
+  list.map(spec.blocks, fn(b) { { name: b.name, shape: b.shape, size: b.size, offset: b.offset } })
+}
+
+export { block, schema, zeros, seeded, block_meta, get_block, set_block, flatten, from_flat, named_shapes }

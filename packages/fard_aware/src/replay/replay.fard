@@ -1,0 +1,58 @@
+import("std/list") as list
+import("std/rec") as rec
+import("../core/util") as util
+import("../core/rng") as rng
+
+fn transition(obs, action, reward, cont, next_obs, step_index) {
+  {
+    obs: obs,
+    action: action,
+    reward: reward,
+    cont: cont,
+    next_obs: next_obs,
+    step_index: step_index
+  }
+}
+
+fn empty(capacity) {
+  { capacity: capacity, items: [] }
+}
+
+fn len(buffer) { list.len(buffer.items) }
+
+fn append(buffer, t) {
+  let items2 = list.append(buffer.items, t)
+  let n = list.len(items2)
+  let items3 = if n > buffer.capacity then list.drop(items2, n - buffer.capacity) else items2
+  { capacity: buffer.capacity, items: items3 }
+}
+
+fn get(buffer, i) { list.get(buffer.items, i) }
+
+fn digest(buffer) {
+  util.digest(buffer.items)
+}
+
+fn batch_spec(batch_size, seq_len) {
+  { batch_size: batch_size, seq_len: seq_len }
+}
+
+fn sample_sequence(buffer, start, seq_len) {
+  let n = list.len(buffer.items)
+  let end = if start + seq_len > n then n else start + seq_len
+  list.take(list.drop(buffer.items, start), end - start)
+}
+
+fn sample(buffer, rng0, spec) {
+  let n = list.len(buffer.items)
+  let max_start = if n - spec.seq_len <= 0 then 1 else n - spec.seq_len
+  let init = { out: [], rng: rng0 }
+  let out = list.fold(util.range0(spec.batch_size), init, fn(acc, _) {
+    let draw = rng.sample_index(acc.rng, max_start)
+    let seq = sample_sequence(buffer, draw.value, spec.seq_len)
+    { out: list.append(acc.out, seq), rng: draw.rng }
+  })
+  { batch: { items: util.flatten(out.out) }, rng: out.rng }
+}
+
+export { transition, empty, len, append, get, digest, batch_spec, sample_sequence, sample }

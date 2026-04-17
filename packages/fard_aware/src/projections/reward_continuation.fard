@@ -1,0 +1,25 @@
+import("std/list") as list
+import("../core/util") as util
+
+fn reward_support(num_bins, lo, hi) {
+  let step = (hi - lo) / (num_bins - 1)
+  list.map(util.range0(num_bins), fn(i) { lo + step * i })
+}
+
+fn expected_reward(pred) {
+  let probs = pred.probs.data
+  let support = reward_support(list.len(probs), -20.0, 20.0)
+  list.fold(util.range0(list.len(probs)), 0.0, fn(acc, i) {
+    acc + list.get(probs, i) * list.get(support, i)
+  })
+}
+
+fn expected_cont(pred) {
+  pred.p
+}
+
+fn bernoulli_mean(pred) {
+  pred.p
+}
+
+export { reward_support, expected_reward, expected_cont, bernoulli_mean }

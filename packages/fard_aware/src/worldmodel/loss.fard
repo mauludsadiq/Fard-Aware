@@ -1,0 +1,35 @@
+import("std/list") as list
+import("std/math") as math
+import("../core/util") as util
+
+fn kl(q, p) {
+  list.fold(util.range0(list.len(q.probs.data)), 0.0, fn(acc, i) {
+    let qi = list.get(q.probs.data, i)
+    let pi = list.get(p.probs.data, i)
+    if qi <= 0.0 || pi <= 0.0 then acc else acc + qi * (math.log(qi) - math.log(pi))
+  })
+}
+
+fn free_bits(x) {
+  if x < 1.0 then 1.0 else x
+}
+
+fn l_dyn(q_post, p_prior) {
+  free_bits(kl(q_post, p_prior))
+}
+
+fn l_rep(q_post, p_prior) {
+  free_bits(kl(q_post, p_prior))
+}
+
+fn l_pred(loss_recon, loss_reward, loss_cont) {
+  loss_recon + loss_reward + loss_cont
+}
+
+fn l_wm(preds, dyns, reps) {
+  list.fold(util.range0(list.len(preds)), 0.0, fn(acc, i) {
+    acc + list.get(preds, i) + 0.5 * list.get(dyns, i) + 0.1 * list.get(reps, i)
+  })
+}
+
+export { kl, free_bits, l_dyn, l_rep, l_pred, l_wm }

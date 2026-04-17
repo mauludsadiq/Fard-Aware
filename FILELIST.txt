@@ -1,0 +1,6 @@
+/mnt/data/FARD_Aware/.vscode/tasks.json
+/mnt/data/FARD_Aware/FARD_Aware.code-workspace
+/mnt/data/FARD_Aware/FILELIST.txt
+/mnt/data/FARD_Aware/README.md
+/mnt/data/FARD_Aware/apps/demo_train_step.fard
+/mnt/data/FARD_Aware/tests/test_fard_aware.fard

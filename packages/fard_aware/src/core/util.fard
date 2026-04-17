@@ -1,0 +1,134 @@
+import("std/list") as list
+import("std/rec") as rec
+import("std/str") as str
+import("std/math") as math
+import("std/float") as float
+import("std/json") as json
+import("std/hash") as hash
+
+fn clamp(x, lo, hi) {
+  if x < lo then lo else (if x > hi then hi else x)
+}
+fn clamp(x, lo, hi) {
+  if x < lo then lo else (if x > hi then hi else x)
+}
+fn clamp(x, lo, hi) {
+  if x < lo then lo else (if x > hi then hi else x)
+}
+
+fn clamp01(x) {
+  clamp(x, 0.0, 1.0)
+}
+
+fn sum(xs) {
+  list.fold(xs, 0.0, fn(acc, x) { acc + x })
+}
+
+fn mean(xs) {
+  if list.len(xs) == 0 then 0.0 else sum(xs) / list.len(xs)
+}
+
+fn product(xs) {
+  list.fold(xs, 1, fn(acc, x) { acc * x })
+}
+
+fn range0(n) {
+  list.range(0, n)
+}
+
+fn vec_add(a, b) {
+  list.map(range0(list.len(a)), fn(i) { list.get(a, i) + list.get(b, i) })
+}
+
+fn vec_sub(a, b) {
+  list.map(range0(list.len(a)), fn(i) { list.get(a, i) - list.get(b, i) })
+}
+
+fn vec_scale(a, s) {
+  list.map(a, x => x * s)
+}
+
+fn dot(a, b) {
+  list.fold(range0(list.len(a)), 0.0, fn(acc, i) {
+    acc + list.get(a, i) * list.get(b, i)
+  })
+}
+
+fn argmax(xs) {
+  let init = { idx: 0, val: list.get(xs, 0) }
+  let best = list.fold(range0(list.len(xs)), init, fn(acc, i) {
+    let v = list.get(xs, i)
+    if v > acc.val then { idx: i, val: v } else acc
+  })
+  best.idx
+}
+
+fn sort_numeric(xs) {
+  list.sort_by(xs, fn(a, b) { if a < b then -1 else (if a > b then 1 else 0) })
+}
+
+fn percentile(xs, q) {
+  let ys = sort_numeric(xs)
+  let n = list.len(ys)
+  if n == 0 then 0.0 else
+    let idx = clamp(math.floor(q * (n - 1)), 0, n - 1) in
+    list.get(ys, idx)
+}
+
+fn canonical_text(v) {
+  json.canonicalize(v)
+}
+
+fn digest(v) {
+  hash.sha256_text(canonical_text(v))
+}
+
+fn take(xs, n) {
+  list.take(xs, n)
+}
+
+fn drop(xs, n) {
+  list.drop(xs, n)
+}
+
+fn concat(a, b) {
+  list.concat([a, b])
+}
+
+fn repeat(v, n) {
+  list.repeat(v, n)
+}
+
+fn flatten(xss) {
+  list.flatten(xss)
+}
+
+fn approx_eq(a, b, eps) {
+  let d = a - b
+  let ad = if d < 0.0 then -d else d
+  ad <= eps
+}
+
+export {
+  clamp,
+  clamp01,
+  sum,
+  mean,
+  product,
+  range0,
+  vec_add,
+  vec_sub,
+  vec_scale,
+  dot,
+  argmax,
+  sort_numeric,
+  percentile,
+  canonical_text,
+  digest,
+  take,
+  drop,
+  concat,
+  repeat,
+  flatten,
+  approx_eq
+}

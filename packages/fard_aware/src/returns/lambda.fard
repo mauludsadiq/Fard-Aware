@@ -1,0 +1,26 @@
+import("std/math") as math
+import("std/list") as list
+import("../core/util") as util
+
+fn lambda_return(r_hat, c_hat, v_vals, gamma, lambda_, horizon) {
+  let ns = list.range(1, horizon + 1)
+  list.fold(ns, 0.0, fn(acc_r, n) {
+    let inner = list.fold(util.range0(n), { g: 0.0, d: 1.0 }, fn(acc, k) {
+      { g: acc.g + acc.d * list.get(r_hat, k), d: acc.d * gamma * list.get(c_hat, k) }
+    })
+    let gn = inner.g + inner.d * list.get(v_vals, n)
+    acc_r + (1.0 - lambda_) * math.pow(lambda_, (n - 1) * 1.0) * gn
+  })
+}
+
+fn lambda_return_seq(r_hat, c_hat, v_vals, gamma, lambda_, horizon) {
+  list.map(util.range0(horizon), fn(t) {
+    let rs = list.drop(r_hat, t)
+    let cs = list.drop(c_hat, t)
+    let vs = list.drop(v_vals, t)
+    let h = if list.len(rs) < horizon then list.len(rs) - 1 else horizon
+    if h <= 0 then list.get(vs, 0) else lambda_return(rs, cs, vs, gamma, lambda_, h)
+  })
+}
+
+export { lambda_return, lambda_return_seq }

@@ -1,0 +1,72 @@
+import("../tensor/ops") as tensor
+import("../core/rng") as rng
+import("../optimizer/adam") as adam
+import("../rssm/core") as rssm_core
+import("../rssm/prior") as prior
+import("../rssm/posterior") as posterior
+import("../heads/observation") as obs
+import("../heads/reward") as reward_head
+import("../heads/continuation") as cont_head
+import("../heads/value") as value_head
+import("../actor/policy") as actor
+
+fn world_init(seed, h_dim, z_dim, x_dim, a_dim, bins, scale) {
+  {
+    core: rssm_core.init(seed + 1, h_dim, z_dim, a_dim, scale),
+    prior: prior.init(seed + 2, h_dim, z_dim, scale),
+    posterior: posterior.init(seed + 3, h_dim, x_dim, z_dim, scale),
+    obs: obs.init(seed + 4, h_dim + z_dim, x_dim, scale),
+    reward: reward_head.init(seed + 5, h_dim + z_dim, bins, scale),
+    cont: cont_head.init(seed + 6, h_dim + z_dim, scale)
+  }
+}
+
+fn init(seed, h_dim, z_dim, x_dim, a_dim, bins, scale) {
+  let world = world_init(seed, h_dim, z_dim, x_dim, a_dim, bins, scale)
+  let actor_params = actor.init(seed + 7, h_dim + z_dim, a_dim, scale)
+  let critic = value_head.init(seed + 8, h_dim + z_dim, bins, scale)
+  {
+    world: world,
+    actor: actor_params,
+    critic: critic,
+    opt: {
+      world: {
+        core: adam.init(world.core),
+        prior: adam.init(world.prior),
+        posterior: adam.init(world.posterior),
+        obs: adam.init(world.obs),
+        reward: adam.init(world.reward),
+        cont: adam.init(world.cont)
+      },
+      actor: adam.init(actor_params),
+      critic: adam.init(critic)
+    },
+    rng: rng.make(seed + 1000),
+    receipt: "sha256:genesis",
+    step: 0,
+    cfg: {
+      h_dim: h_dim,
+      z_dim: z_dim,
+      x_dim: x_dim,
+      a_dim: a_dim,
+      bins: bins,
+      scale: scale,
+      horizon: 4,
+      gamma: 0.99,
+      lambda_: 0.95,
+      lr_world: 0.005,
+      lr_actor: 0.005,
+      lr_critic: 0.005,
+      eps_fd: 0.0001,
+      adam_b1: 0.9,
+      adam_b2: 0.999,
+      adam_eps: 0.000001
+    }
+  }
+}
+
+fn initial_state(h_dim, z_dim) {
+  { h: tensor.zeros([h_dim]), z: tensor.onehot(z_dim, 0) }
+}
+
+export { world_init, init, initial_state }

@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "FARD Aware: demo train step",
+      "type": "shell",
+      "command": "fardrun run --program apps/demo_train_step.fard --out out/demo_train",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "FARD Aware: tests",
+      "type": "shell",
+      "command": "fardrun test --program tests/test_fard_aware.fard",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}

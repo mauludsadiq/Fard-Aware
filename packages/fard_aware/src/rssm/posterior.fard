@@ -1,0 +1,30 @@
+import("std/list") as list
+import("../params/schema") as ps
+import("../tensor/ops") as tensor
+import("../core/util") as util
+
+fn schema(h_dim, x_dim, z_dim) {
+  ps.schema([
+    ps.block("w_post", [z_dim, h_dim + x_dim]),
+    ps.block("b_post", [z_dim])
+  ])
+}
+
+fn init(seed, h_dim, x_dim, z_dim, scale) {
+  ps.seeded(schema(h_dim, x_dim, z_dim), seed, scale)
+}
+
+fn q_post(params, h, x) {
+  let inp = util.concat(h.data, x.data)
+  let z_dim = list.get(ps.block_meta(params.spec, "b_post").shape, 0)
+  let w = tensor.make([z_dim, list.len(inp)], ps.get_block(params, "w_post"))
+  let b = ps.get_block(params, "b_post")
+  let logits = tensor.make([z_dim], list.map(util.range0(z_dim), fn(i) {
+    list.fold(util.range0(list.len(inp)), list.get(b, i), fn(acc, j) {
+      acc + tensor.get(w, [i, j]) * list.get(inp, j)
+    })
+  }))
+  { probs: tensor.softmax(logits), logits: logits }
+}
+
+export { schema, init, q_post }

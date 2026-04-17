@@ -1,0 +1,43 @@
+import("std/json") as json
+import("std/hash") as hash
+import("std/rec") as rec
+import("../core/util") as util
+
+fn payload(module_id, step_id, input_digests, output_digests, param_digest, rng_in, rng_out, metadata) {
+  {
+    module_id: module_id,
+    step_id: step_id,
+    input_digests: input_digests,
+    output_digests: output_digests,
+    param_digest: param_digest,
+    rng_in: rng_in,
+    rng_out: rng_out,
+    metadata: metadata
+  }
+}
+
+fn encode_payload(p) {
+  json.canonicalize(p)
+}
+
+fn hash_bytes(text) {
+  hash.sha256_text(text)
+}
+
+fn digest_tensor(t) {
+  hash_bytes(json.canonicalize(t))
+}
+
+fn digest_scalar(x) {
+  hash_bytes(json.canonicalize(x))
+}
+
+fn digest_bytes(x) {
+  hash_bytes(json.canonicalize(x))
+}
+
+fn step_receipt(prev, p) {
+  hash_bytes(prev + encode_payload(p))
+}
+
+export { payload, encode_payload, hash_bytes, digest_tensor, digest_scalar, digest_bytes, step_receipt }

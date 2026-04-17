@@ -1,0 +1,50 @@
+import("std/list") as list
+import("std/math") as math
+import("../params/schema") as ps
+import("../tensor/ops") as tensor
+import("../core/util") as util
+import("../projections/reward_continuation") as proj
+import("../heads/reward") as reward_head
+
+fn schema(state_dim, bins) {
+  ps.schema([
+    ps.block("w_value", [bins, state_dim]),
+    ps.block("b_value", [bins])
+  ])
+}
+
+fn init(seed, state_dim, bins, scale) {
+  ps.seeded(schema(state_dim, bins), seed, scale)
+}
+
+fn state_vec(s) { util.concat(s.h.data, s.z.data) }
+
+fn value_dist(params, s) {
+  let st = state_vec(s)
+  let bins = list.get(ps.block_meta(params.spec, "b_value").shape, 0)
+  let w = tensor.make([bins, list.len(st)], ps.get_block(params, "w_value"))
+  let b = ps.get_block(params, "b_value")
+  let logits = tensor.make([bins], list.map(util.range0(bins), fn(i) {
+    list.fold(util.range0(list.len(st)), list.get(b, i), fn(acc, j) {
+      acc + tensor.get(w, [i, j]) * list.get(st, j)
+    })
+  }))
+  { probs: tensor.softmax(logits), logits: logits }
+}
+
+fn target_value(r_lambda, bins) {
+  reward_head.twohot(r_lambda, bins)
+}
+
+fn ce(target, pred) {
+  list.fold(util.range0(list.len(target.data)), 0.0, fn(acc, i) {
+    let t = list.get(target.data, i)
+    let p = list.get(pred.probs.data, i)
+    if t == 0.0 then acc else acc - t * math.log(p)
+  })
+}
+
+fn loss_value(target, pred) { ce(target, pred) }
+fn expected_value(pred) { proj.expected_reward(pred) }
+
+export { schema, init, state_vec, value_dist, target_value, ce, loss_value, expected_value }

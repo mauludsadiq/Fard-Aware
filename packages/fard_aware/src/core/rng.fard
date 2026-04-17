@@ -1,0 +1,54 @@
+import("std/list") as list
+import("std/rec") as rec
+import("std/int") as int
+import("std/float") as float
+import("../core/util") as util
+
+let MOD = 2147483647
+let MUL = 48271
+
+fn make(seed) {
+  let s = if seed <= 0 then 1 else seed
+  { state: s }
+}
+
+fn next(rng) {
+  let s = rec.getOr(rng, "state", 1)
+  let s2 = (s * MUL) % MOD
+  { state: if s2 == 0 then 1 else s2 }
+}
+
+fn next_int(rng, bound) {
+  let r2 = next(rng)
+  let n = rec.getOr(r2, "state", 1) % bound
+  { value: n, rng: r2 }
+}
+
+fn next_float(rng) {
+  let r2 = next(rng)
+  let s = rec.getOr(r2, "state", 1)
+  { value: s / MOD, rng: r2 }
+}
+
+fn sample_index(rng, n) {
+  next_int(rng, n)
+}
+
+fn sample_categorical_step(acc, i, probs, u) {
+  if acc.done then acc else
+    (let p = list.get(probs, i) in
+     let cum2 = acc.cum + p in
+     (if u <= cum2 then { idx: i, cum: cum2, done: true } else { idx: i, cum: cum2, done: false }))
+}
+
+fn sample_categorical(probs, rng) {
+  let draw = next_float(rng)
+  let u = draw.value
+  let acc0 = { idx: 0, cum: 0.0, done: false }
+  let out = list.fold(util.range0(list.len(probs)), acc0, fn(acc, i) {
+    sample_categorical_step(acc, i, probs, u)
+  })
+  { index: out.idx, rng: draw.rng }
+}
+
+export { make, next, next_int, next_float, sample_index, sample_categorical }

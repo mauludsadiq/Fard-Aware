@@ -1,0 +1,198 @@
+import("std/list") as list
+import("std/rec") as rec
+import("std/math") as math
+import("../core/util") as util
+
+fn make(shape, data) {
+  { shape: shape, data: data }
+}
+
+fn rank(t) { list.len(t.shape) }
+fn shape(t) { t.shape }
+fn numel(t) { util.product(t.shape) }
+fn empty(shape) { { shape: shape, data: [] } }
+fn zeros(shape) { make(shape, list.repeat(0.0, util.product(shape))) }
+fn ones(shape) { make(shape, list.repeat(1.0, util.product(shape))) }
+fn fill(shape, v) { make(shape, list.repeat(v, util.product(shape))) }
+
+fn flatten_index(shape, idxs) {
+  let n = list.len(shape)
+  let acc0 = { pos: 0, stride: 1 }
+  let rev_shape = list.reverse(shape)
+  let rev_idxs = list.reverse(idxs)
+  let out = list.fold(util.range0(n), acc0, fn(acc, i) {
+    let d = list.get(rev_shape, i)
+    let k = list.get(rev_idxs, i)
+    { pos: acc.pos + k * acc.stride, stride: acc.stride * d }
+  })
+  out.pos
+}
+
+fn get(t, idxs) {
+  list.get(t.data, flatten_index(t.shape, idxs))
+}
+
+fn set(t, idxs, v) {
+  make(t.shape, list.set(t.data, flatten_index(t.shape, idxs), v))
+}
+
+fn reshape(t, shape2) {
+  if util.product(shape2) == list.len(t.data) then make(shape2, t.data) else t
+}
+
+fn flatten(t) { make([list.len(t.data)], t.data) }
+
+fn slice1(t, start, stop) {
+  make([stop - start], list.take(list.drop(t.data, start), stop - start))
+}
+
+fn row(t, i) {
+  let cols = list.get(t.shape, 1)
+  slice1(flatten(t), i * cols, (i + 1) * cols)
+}
+
+fn concat_axis0(ts) {
+  let data = util.flatten(list.map(ts, x => x.data))
+  let first = list.get(ts, 0)
+  let rows = list.fold(ts, 0, fn(acc, x) { acc + list.get(x.shape, 0) })
+  let rest = list.drop(first.shape, 1)
+  make(util.concat([rows], rest), data)
+}
+
+fn concat_axis1(ts) {
+  let rows = list.get(list.get(ts, 0).shape, 0)
+  let cols = list.fold(ts, 0, fn(acc, x) { acc + list.get(x.shape, 1) })
+  let new_rows = list.map(util.range0(rows), fn(r) {
+    util.flatten(list.map(ts, fn(t) { row(t, r).data }))
+  })
+  make([rows, cols], util.flatten(new_rows))
+}
+
+fn concat(ts, axis) {
+  if list.len(ts) == 0 then empty([0]) else (if axis == 0 then concat_axis0(ts) else concat_axis1(ts))
+}
+fn concat(ts, axis) {
+  if list.len(ts) == 0 then empty([0]) else (if axis == 0 then concat_axis0(ts) else concat_axis1(ts))
+}
+fn concat(ts, axis) {
+  if list.len(ts) == 0 then empty([0]) else (if axis == 0 then concat_axis0(ts) else concat_axis1(ts))
+}
+
+fn map2(a, b, f) {
+  make(a.shape, list.map(util.range0(list.len(a.data)), fn(i) {
+    f(list.get(a.data, i), list.get(b.data, i))
+  }))
+}
+
+fn map1(a, f) {
+  make(a.shape, list.map(a.data, f))
+}
+
+fn map_add(a, b) { map2(a, b, fn(x, y) { x + y }) }
+fn map_sub(a, b) { map2(a, b, fn(x, y) { x - y }) }
+fn map_mul(a, b) { map2(a, b, fn(x, y) { x * y }) }
+fn map_div(a, b) { map2(a, b, fn(x, y) { x / y }) }
+fn map_max(a, b) { map2(a, b, fn(x, y) { if x > y then x else y }) }
+fn map_exp(a) { map1(a, x => math.exp(x)) }
+fn map_log(a) { map1(a, x => math.log(x)) }
+fn map_neg(a) { map1(a, x => -x) }
+fn map_abs(a) { map1(a, x => math.abs(x)) }
+fn scale(a, s) { map1(a, x => x * s) }
+
+fn dot(a, b) {
+  util.dot(a.data, b.data)
+}
+
+fn matmul(a, b) {
+  let rows = list.get(a.shape, 0)
+  let inner = list.get(a.shape, 1)
+  let cols = list.get(b.shape, 1)
+  let out = list.map(util.range0(rows), fn(i) {
+    list.map(util.range0(cols), fn(j) {
+      list.fold(util.range0(inner), 0.0, fn(acc, k) {
+        acc + get(a, [i, k]) * get(b, [k, j])
+      })
+    })
+  })
+  make([rows, cols], util.flatten(out))
+}
+
+fn outer(a, b) {
+  let xs = a.data
+  let ys = b.data
+  let out = list.map(xs, fn(x) { list.map(ys, fn(y) { x * y }) })
+  make([list.len(xs), list.len(ys)], util.flatten(out))
+}
+
+fn sum_all(t) { util.sum(t.data) }
+fn mean_all(t) { if list.len(t.data) == 0 then 0.0 else util.sum(t.data) / list.len(t.data) }
+fn max_all(t) {
+  if list.len(t.data) == 0 then 0.0 else list.fold(t.data, list.get(t.data, 0), fn(acc, x) { if x > acc then x else acc })
+}
+
+fn sum_axis(t, axis) {
+  let rows = list.get(t.shape, 0)
+  let cols = list.get(t.shape, 1)
+  if axis == 0 then (make([cols], list.map(util.range0(cols), fn(j) {
+        list.fold(util.range0(rows), 0.0, fn(acc, i) { acc + get(t, [i, j]) })
+      }))) else (make([rows], list.map(util.range0(rows), fn(i) {
+        list.fold(util.range0(cols), 0.0, fn(acc, j) { acc + get(t, [i, j]) })
+      })))
+}
+
+fn mean_axis(t, axis) {
+  let s = sum_axis(t, axis)
+  if axis == 0 then scale(s, 1.0 / list.get(t.shape, 0)) else scale(s, 1.0 / list.get(t.shape, 1))
+}
+
+fn max_axis0_col(t, rows, j) {
+  list.fold(util.range0(rows), get(t, [0, j]), fn(acc, i) {
+    if get(t, [i, j]) > acc then get(t, [i, j]) else acc
+  })
+}
+
+fn max_axis1_row(t, cols, i) {
+  list.fold(util.range0(cols), get(t, [i, 0]), fn(acc, j) {
+    if get(t, [i, j]) > acc then get(t, [i, j]) else acc
+  })
+}
+
+fn max_axis(t, axis) {
+  let rows = list.get(t.shape, 0)
+  let cols = list.get(t.shape, 1)
+  if axis == 0 then (make([cols], list.map(util.range0(cols), fn(j) {
+        max_axis0_col(t, rows, j)
+      }))) else (make([rows], list.map(util.range0(rows), fn(i) {
+        max_axis1_row(t, cols, i)
+      })))
+}
+
+fn softmax(v) {
+  let m = max_all(v)
+  let ex = list.map(v.data, fn(x) { math.exp(x - m) })
+  let s = util.sum(ex)
+  make(v.shape, list.map(ex, x => x / s))
+}
+
+fn log_softmax(v) {
+  let sm = softmax(v)
+  make(v.shape, list.map(sm.data, fn(x) { math.log(x) }))
+}
+
+fn argmax(v) { util.argmax(v.data) }
+fn onehot(k, idx) { make([k], list.map(util.range0(k), fn(i) { if i == idx then 1.0 else 0.0 })) }
+fn normalize_simplex(v) {
+  let clipped = list.map(v.data, fn(x) { if x < 0.0 then 0.0 else x })
+  let s = util.sum(clipped)
+  if s == 0.0 then onehot(list.len(clipped), 0) else make(v.shape, list.map(clipped, x => x / s))
+}
+
+export {
+  make, rank, shape, numel, empty, zeros, ones, fill,
+  get, set, reshape, flatten, slice1, row, concat,
+  map_add, map_sub, map_mul, map_div, map_max,
+  map_exp, map_log, map_neg, map_abs, scale,
+  dot, matmul, outer,
+  sum_all, mean_all, max_all, sum_axis, mean_axis, max_axis,
+  softmax, log_softmax, argmax, onehot, normalize_simplex
+}

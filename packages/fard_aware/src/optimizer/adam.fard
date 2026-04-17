@@ -1,0 +1,37 @@
+import("std/list") as list
+import("std/rec") as rec
+import("std/math") as math
+import("../core/util") as util
+
+fn init(params) {
+  let n = list.len(params.values)
+  { step: 0, m: list.repeat(0.0, n), v: list.repeat(0.0, n) }
+}
+
+fn update(params, opt_state, grads, lr, b1, b2, eps) {
+  let t = opt_state.step + 1
+  let idxs = util.range0(list.len(params.values))
+  let m2 = list.map(idxs, fn(i) {
+    b1 * list.get(opt_state.m, i) + (1.0 - b1) * list.get(grads, i)
+  })
+  let v2 = list.map(idxs, fn(i) {
+    b2 * list.get(opt_state.v, i) + (1.0 - b2) * list.get(grads, i) * list.get(grads, i)
+  })
+  let b1t = math.pow(b1, t * 1.0)
+  let b2t = math.pow(b2, t * 1.0)
+  let vals2 = list.map(idxs, fn(i) {
+    let mhat = list.get(m2, i) / (1.0 - b1t)
+    let vhat = list.get(v2, i) / (1.0 - b2t)
+    list.get(params.values, i) - lr * mhat / (math.sqrt(vhat) + eps)
+  })
+  {
+    params: { spec: params.spec, values: vals2 },
+    opt_state: { step: t, m: m2, v: v2 }
+  }
+}
+
+fn digest(params, opt_state) {
+  util.digest({ params: params.values, opt_state: opt_state })
+}
+
+export { init, update, digest }
