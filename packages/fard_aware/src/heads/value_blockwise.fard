@@ -1,0 +1,65 @@
+import("std/list") as list
+import("std/math") as math
+import("std/str") as str
+import("../params/schema") as ps
+import("../tensor/ops") as tensor
+import("../core/util") as util
+import("../projections/reward_continuation") as proj
+import("../heads/reward") as reward_head
+
+fn schema(state_dim, bins) {
+  ps.schema(list.concat([
+    list.map(util.range0(bins), fn(i) { ps.block(str.concat(["w_value_row_", str.from(i)]), [state_dim]) }),
+    list.map(util.range0(bins), fn(i) { ps.block(str.concat(["b_value_", str.from(i)]), [1]) })
+  ]))
+}
+
+fn init(seed, state_dim, bins, scale) {
+  ps.seeded(schema(state_dim, bins), seed, scale)
+}
+
+fn state_vec(s) { util.concat(s.h.data, s.z.data) }
+
+fn weight_rows(params, bins) {
+  list.map(util.range0(bins), fn(i) {
+    ps.get_block(params, str.concat(["w_value_row_", str.from(i)]))
+  })
+}
+
+fn bias_vals(params, bins) {
+  list.map(util.range0(bins), fn(i) {
+    list.get(ps.get_block(params, str.concat(["b_value_", str.from(i)])), 0)
+  })
+}
+
+fn value_dist(params, s) {
+  let st = state_vec(s)
+  let bins = list.len(list.filter(params.spec.blocks, fn(b) {
+    str.starts_with(b.name, "b_value_")
+  }))
+  let rows = weight_rows(params, bins)
+  let b = bias_vals(params, bins)
+  let logits = tensor.make([bins], list.map(util.range0(bins), fn(i) {
+    list.fold(util.range0(list.len(st)), list.get(b, i), fn(acc, j) {
+      acc + list.get(list.get(rows, i), j) * list.get(st, j)
+    })
+  }))
+  { probs: tensor.softmax(logits), logits: logits }
+}
+
+fn target_value(r_lambda, bins) {
+  reward_head.twohot(r_lambda, bins)
+}
+
+fn ce(target, pred) {
+  list.fold(util.range0(list.len(target.data)), 0.0, fn(acc, i) {
+    let t = list.get(target.data, i)
+    let p = list.get(pred.probs.data, i)
+    if t == 0.0 then acc else acc - t * math.log(p)
+  })
+}
+
+fn loss_value(target, pred) { ce(target, pred) }
+fn expected_value(pred) { proj.expected_reward(pred) }
+
+export { schema, init, state_vec, value_dist, target_value, ce, loss_value, expected_value }

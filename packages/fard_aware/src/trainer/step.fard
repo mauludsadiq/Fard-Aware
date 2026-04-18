@@ -10,14 +10,14 @@ import("../rssm/latent") as latent
 import("../heads/observation") as obs
 import("../heads/reward") as reward_head
 import("../heads/continuation") as cont_head
-import("../heads/value") as value_head
+import("../heads/value_blockwise") as value_head
 import("../worldmodel/loss") as wm_loss
 import("../returns/lambda") as returns
 import("../imagination/rollout") as imagination
 import("../grad/tape") as grad
 import("../grad/oracle") as oracle
 import("../optimizer/adam") as adam
-import("../actor/policy") as actor
+import("../actor/policy_blockwise") as actor
 import("../receipt/encode") as receipt
 import("../trainer/state") as state_mod
 import("../replay/replay") as replay_mod
@@ -56,7 +56,7 @@ fn exact_grad(loss_fn, params0, inputs, eps) {
 
 fn grad_for_params(loss_fn, params0, inputs, cfg) {
   let mode = rec.getOr(rec.getOr(cfg, "grad_oracle", {}), "mode", "exact")
-  if mode == "blockwise" then exact_grad(loss_fn, params0, inputs, rec.getOr(rec.getOr(cfg, "grad_oracle", {}), "eps", cfg.eps_fd)) else exact_grad(loss_fn, params0, inputs, cfg.eps_fd)
+  if mode == "blockwise" then grad.grad_blockwise(loss_fn, params0, inputs, rec.getOr(rec.getOr(cfg, "grad_oracle", {}), "eps", cfg.eps_fd)) else exact_grad(loss_fn, params0, inputs, cfg.eps_fd)
 }
 
 fn update_world_module(world, opt_world, module_name, cfg, trans, rng0, receipt0) {
@@ -66,8 +66,7 @@ fn update_world_module(world, opt_world, module_name, cfg, trans, rng0, receipt0
     let w2 = with_world_module(inputs.world, inputs.module_name, params)
     transition_world_loss(w2, inputs.cfg, inputs.trans, inputs.rng)
   }
-  let tape = grad.build_tape(loss_fn, params0, { world: world, module_name: module_name, cfg: cfg, trans: trans, rng: rng0 }, cfg.eps_fd)
-  let grads = grad.reverse(tape, 1.0)
+  let grads = grad_for_params(loss_fn, params0, { world: world, module_name: module_name, cfg: cfg, trans: trans, rng: rng0 }, cfg)
   let upd = adam.update(params0, opt0, grads, cfg.lr_world, cfg.adam_b1, cfg.adam_b2, cfg.adam_eps)
   let world2 = with_world_module(world, module_name, upd.params)
   let opt2 = if module_name == "core" then { ...opt_world, core: upd.opt_state } else (if module_name == "prior" then { ...opt_world, prior: upd.opt_state } else (if module_name == "posterior" then { ...opt_world, posterior: upd.opt_state } else (if module_name == "obs" then { ...opt_world, obs: upd.opt_state } else (if module_name == "reward" then { ...opt_world, reward: upd.opt_state } else { ...opt_world, cont: upd.opt_state }))))
@@ -152,12 +151,10 @@ fn step(s, replay) {
   }
 
   let actor_eval = actor_loss(s.actor, u6.world, s.critic, start.s0, cfg, start.rng, u6.receipt)
-  let critic_tape = grad.build_tape(critic_loss_fn, s.critic, { cfg: cfg, states: actor_eval.rollout.states, returns: actor_eval.returns }, cfg.eps_fd)
-  let g_critic = grad.reverse(critic_tape, 1.0)
+  let g_critic = grad_for_params(critic_loss_fn, s.critic, { cfg: cfg, states: actor_eval.rollout.states, returns: actor_eval.returns }, cfg)
   let critic_upd = adam.update(s.critic, s.opt.critic, g_critic, cfg.lr_critic, cfg.adam_b1, cfg.adam_b2, cfg.adam_eps)
 
-  let actor_tape = grad.build_tape(actor_loss_fn, s.actor, { model: u6.world, critic: critic_upd.params, s0: start.s0, cfg: cfg, rng: start.rng, receipt: u6.receipt }, cfg.eps_fd)
-  let g_actor = grad.reverse(actor_tape, 1.0)
+  let g_actor = grad_for_params(actor_loss_fn, s.actor, { model: u6.world, critic: critic_upd.params, s0: start.s0, cfg: cfg, rng: start.rng, receipt: u6.receipt }, cfg)
   let actor_upd = adam.update(s.actor, s.opt.actor, g_actor, cfg.lr_actor, cfg.adam_b1, cfg.adam_b2, cfg.adam_eps)
 
   let pay = receipt.payload(

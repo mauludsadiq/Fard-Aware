@@ -1,5 +1,5 @@
 import("std/list") as list
-import("../actor/policy") as actor
+import("../actor/policy_blockwise") as actor
 import("../rssm/core") as rssm_core
 import("../rssm/prior") as prior
 import("../rssm/latent") as latent

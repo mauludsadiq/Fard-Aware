@@ -2,8 +2,66 @@ import("std/list") as list
 import("../params/schema") as ps
 import("../core/util") as util
 
+fn fill_block(size, v) {
+  list.map(util.range0(size), fn(_) { v })
+}
+
+fn l1_norm(xs) {
+  list.fold(xs, 0.0, fn(acc, x) {
+    let ax = if x < 0.0 then -x else x
+    acc + ax
+  })
+}
+
+fn basis_dirs(n) {
+  let idx = util.range0(n)
+  let v1 = list.map(idx, fn(_) { 1.0 })
+  let v2 = list.map(idx, fn(i) { if i % 2 == 0 then 1.0 else -1.0 })
+  let half = n / 2
+  let v3 = list.map(idx, fn(i) { if i < half then 1.0 else -1.0 })
+  let v4 = list.map(idx, fn(i) { if i % 3 == 0 then 1.0 else 0.0 })
+  [v1, v2, v3, v4]
+}
+
+fn combine_dirs(dirs, gs) {
+  let n = list.len(list.get(dirs, 0))
+  let zeros = list.repeat(0.0, n)
+  list.fold(util.range0(list.len(dirs)), zeros, fn(acc, k) {
+    let v = list.get(dirs, k)
+    let g = list.get(gs, k)
+    let norm = l1_norm(v)
+    let scaled = list.map(v, fn(x) {
+      if norm == 0.0 then 0.0 else g * (x / norm)
+    })
+    list.map(util.range0(n), fn(i) {
+      list.get(acc, i) + list.get(scaled, i)
+    })
+  })
+}
+
 fn build_tape(loss_fn, params, inputs, eps) {
   { loss_fn: loss_fn, params: params, inputs: inputs, eps: eps }
+}
+
+fn reverse_blockwise(tape, seed_grad) {
+  let base = tape.loss_fn(tape.params, tape.inputs)
+  let grads0 = list.repeat(0.0, list.len(tape.params.values))
+  list.fold(tape.params.spec.blocks, grads0, fn(acc, b) {
+    let block_vals = ps.get_block(tape.params, b.name)
+    let dirs = basis_dirs(b.size)
+    let gs = list.map(dirs, fn(v) {
+      let pert = list.map(util.range0(b.size), fn(i) {
+        list.get(block_vals, i) + tape.eps * list.get(v, i)
+      })
+      let p1 = ps.set_block(tape.params, b.name, pert)
+      let l1 = tape.loss_fn(p1, tape.inputs)
+      seed_grad * (l1 - base) / tape.eps
+    })
+    let block_grads = combine_dirs(dirs, gs)
+    let left = list.take(acc, b.offset)
+    let right = list.drop(acc, b.offset + b.size)
+    list.concat([left, block_grads, right])
+  })
 }
 
 fn reverse(tape, seed_grad) {
@@ -20,8 +78,12 @@ fn grad(loss_fn, params, inputs, eps) {
   reverse(build_tape(loss_fn, params, inputs, eps), 1.0)
 }
 
+fn grad_blockwise(loss_fn, params, inputs, eps) {
+  reverse_blockwise(build_tape(loss_fn, params, inputs, eps), 1.0)
+}
+
 fn digest_tape(tape) {
   util.digest({ params: tape.params.values, inputs: tape.inputs, eps: tape.eps })
 }
 
-export { build_tape, reverse, grad, digest_tape }
+export { build_tape, reverse, reverse_blockwise, grad, grad_blockwise, digest_tape, l1_norm, basis_dirs, combine_dirs }

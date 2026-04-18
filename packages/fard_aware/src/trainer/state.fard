@@ -7,8 +7,8 @@ import("../rssm/posterior") as posterior
 import("../heads/observation") as obs
 import("../heads/reward") as reward_head
 import("../heads/continuation") as cont_head
-import("../heads/value") as value_head
-import("../actor/policy") as actor
+import("../heads/value_blockwise") as value_head
+import("../actor/policy_blockwise") as actor
 import("../grad/oracle") as oracle
 
 fn world_init(seed, h_dim, z_dim, x_dim, a_dim, bins, scale) {
@@ -61,8 +61,9 @@ fn init(seed, h_dim, z_dim, x_dim, a_dim, bins, scale) {
       eps_fd: 0.0001,
       adam_b1: 0.9,
       adam_b2: 0.999,
-      adam_eps: 0.000001
-    }
+      adam_eps: 0.000001,
+        grad_oracle: oracle.default_blockwise_config()
+      }
   }
 }
 

@@ -1,0 +1,70 @@
+import("std/math") as math
+import("std/list") as list
+import("std/rec") as rec
+import("std/str") as str
+import("../tensor/ops") as tensor
+import("../params/schema") as ps
+import("../core/util") as util
+import("../core/rng") as rng
+
+fn schema(state_dim, action_dim) {
+  ps.schema(list.concat([
+    list.map(util.range0(action_dim), fn(i) { ps.block(str.concat(["w_row_", str.from(i)]), [state_dim]) }),
+    [ps.block("b", [action_dim])]
+  ]))
+}
+
+fn init(seed, state_dim, action_dim, scale) {
+  ps.seeded(schema(state_dim, action_dim), seed, scale)
+}
+
+fn state_vec(s) {
+  util.concat(s.h.data, s.z.data)
+}
+
+fn weight_rows(params, action_dim) {
+  list.map(util.range0(action_dim), fn(i) {
+    ps.get_block(params, str.concat(["w_row_", str.from(i)]))
+  })
+}
+
+fn logits(params, s) {
+  let state = state_vec(s)
+  let meta_b = ps.block_meta(params.spec, "b")
+  let action_dim = list.get(meta_b.shape, 0)
+  let rows = weight_rows(params, action_dim)
+  let b = ps.get_block(params, "b")
+  tensor.make([action_dim], list.map(util.range0(action_dim), fn(i) {
+    list.fold(util.range0(list.len(state)), list.get(b, i), fn(acc, j) {
+      acc + list.get(list.get(rows, i), j) * list.get(state, j)
+    })
+  }))
+}
+
+fn policy(params, s) {
+  let l = logits(params, s)
+  { probs: tensor.softmax(l), logits: l }
+}
+
+fn log_prob(dist, action) {
+  let idx = tensor.argmax(action)
+  let p = list.get(dist.probs.data, idx)
+  if p <= 0.0 then -1000000.0 else math.log(p)
+}
+
+fn entropy(dist) {
+  list.fold(dist.probs.data, 0.0, fn(acc, p) {
+    if p <= 0.0 then acc else acc - p * math.log(p)
+  })
+}
+
+fn mode(dist) {
+  tensor.onehot(list.len(dist.probs.data), tensor.argmax(dist.probs))
+}
+
+fn sample(dist, rng0) {
+  let draw = rng.sample_categorical(dist.probs.data, rng0)
+  { action: tensor.onehot(list.len(dist.probs.data), draw.index), rng: draw.rng }
+}
+
+export { schema, init, state_vec, logits, policy, log_prob, entropy, mode, sample }
