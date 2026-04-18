@@ -249,3 +249,60 @@ This establishes byte-identical deterministic replay under `fardrun 1.6.0`.
 Operational. Deterministic. Closed.
 
 No missing pieces.
+
+---
+
+## Gradient Oracle Progress
+
+FARD-Aware now includes a live blockwise gradient-oracle path.
+
+### Verified stages
+
+| Mode | 1-step runtime | Outcome |
+|---|---:|---|
+| Exact | ~12m | Faithful reference |
+| 1-direction blockwise | ~57s | Too coarse; collapsed updates |
+| 4-direction blockwise | ~2m24s | Structured approximation; much faster than exact |
+
+---
+## Gradient Oracle Progress
+FARD-Aware now includes a live blockwise gradient-oracle path.
+### Verified stages
+| Mode | 1-step runtime | Outcome |
+|---|---:|---|
+| Exact | ~12m | Faithful reference |
+| 1-direction blockwise | ~57s | Too coarse; collapsed updates |
+| 4-direction blockwise | ~2m24s | Structured approximation; much faster than exact |
+### 4-direction live run
+```text
+fard_run_digest: sha256:f15db9492cace331181be3d79ef0a856ba0e1f843883320274aee6445a510f91
+runtime: 2m23.721s
+
+4-direction behavior
+
+The 4-direction oracle restores non-flat structure in actor and critic updates while remaining substantially faster than exact mode.
+
+Observed tradeoff:
+
+* exact mode remains the fidelity reference
+* 4-direction mode is a real compressed gradient approximation
+* fidelity improved over scalar blockwise, but it is not yet exact-preserving
+
+Exact vs 4-direction head deviation
+
+actor_head_diff:
+  max_abs  = 0.004959492107671985
+  mean_abs = 0.00487393611448717
+critic_head_diff:
+  max_abs  = 0.009998695399351484
+  mean_abs = 0.0037498356285072566
+
+Current interpretation
+
+The system now has three empirically validated regimes:
+
+1. Exact gradient reference
+2. Scalar blockwise oracle
+3. 4-direction deterministic blockwise oracle
+
+The next step is 8-direction deterministic blockwise oracle per block to improve fidelity while preserving a substantial speedup over exact mode.
