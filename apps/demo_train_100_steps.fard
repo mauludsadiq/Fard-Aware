@@ -1,0 +1,57 @@
+import("std/list") as list
+import("std/io") as io
+import("std/json") as json
+import("../packages/fard_aware/src/trainer/state") as trainer_state
+import("../packages/fard_aware/src/trainer/step") as trainer_step
+import("../packages/fard_aware/src/replay/replay") as replay
+import("../packages/fard_aware/src/tensor/ops") as tensor
+import("../packages/fard_aware/src/schema/artifacts") as schema
+
+fn make_transition(i, action_idx, reward, cont) {
+  let obs = tensor.make([4], [i * 1.0, i * 0.5, (i % 3) * 1.0, 1.0])
+  let next_obs = tensor.make([4], [(i + 1) * 1.0, (i + 1) * 0.5, ((i + 1) % 3) * 1.0, cont])
+  let action = tensor.onehot(3, action_idx)
+  replay.transition(obs, action, reward, cont, next_obs, i)
+}
+
+fn seed_replay() {
+  let rb0 = replay.empty(256)
+  let rb1 = replay.append(rb0, make_transition(0, 0, 1.00, 1.0))
+  let rb2 = replay.append(rb1, make_transition(1, 1, 0.50, 1.0))
+  let rb3 = replay.append(rb2, make_transition(2, 2, -0.25, 1.0))
+  let rb4 = replay.append(rb3, make_transition(3, 1, 1.25, 1.0))
+  let rb5 = replay.append(rb4, make_transition(4, 0, 0.75, 1.0))
+  let rb6 = replay.append(rb5, make_transition(5, 2, -0.50, 1.0))
+  let rb7 = replay.append(rb6, make_transition(6, 1, 0.20, 1.0))
+  let rb8 = replay.append(rb7, make_transition(7, 0, 1.10, 0.0))
+  rb8
+}
+
+fn run_steps(s0, rb, steps_n) {
+  let steps = list.range(0, steps_n)
+  list.fold(steps, s0, fn(acc, _) { trainer_step.step(acc, rb) })
+}
+
+let s0 = trainer_state.init(42, 5, 4, 4, 3, 11, 0.05)
+let rb = seed_replay()
+let sN = run_steps(s0, rb, 100)
+
+let _ = io.make_dir("out")
+
+let summary = {
+  package: schema.package_manifest(),
+  state_schema: schema.system_state_schema(),
+  transition_schema: schema.transition_schema(),
+  steps_executed: sN.step,
+  replay_size: replay.len(rb),
+  receipt: sN.receipt,
+  actor_values_head: list.take(sN.actor.values, 8),
+  actor_values_tail: list.take(list.reverse(sN.actor.values), 8),
+  critic_values_head: list.take(sN.critic.values, 8),
+  critic_values_tail: list.take(list.reverse(sN.critic.values), 8),
+  actor_param_count: list.len(sN.actor.values),
+  critic_param_count: list.len(sN.critic.values)
+}
+
+let _ = io.write_file("out/fard_aware_100_step_summary.json", json.canonicalize(summary))
+summary
