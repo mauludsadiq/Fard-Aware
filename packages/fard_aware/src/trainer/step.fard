@@ -15,6 +15,7 @@ import("../worldmodel/loss") as wm_loss
 import("../returns/lambda") as returns
 import("../imagination/rollout") as imagination
 import("../grad/tape") as grad
+import("../grad/oracle") as oracle
 import("../optimizer/adam") as adam
 import("../actor/policy") as actor
 import("../receipt/encode") as receipt
@@ -46,6 +47,16 @@ fn transition_world_loss(model, cfg, trans, rng0) {
   let l_dyn = wm_loss.l_dyn(st.q, p)
   let l_rep = wm_loss.l_rep(st.q, p)
   wm_loss.l_wm([l_pred], [l_dyn], [l_rep])
+}
+
+fn exact_grad(loss_fn, params0, inputs, eps) {
+  let tape = grad.build_tape(loss_fn, params0, inputs, eps)
+  grad.reverse(tape, 1.0)
+}
+
+fn grad_for_params(loss_fn, params0, inputs, cfg) {
+  let mode = rec.getOr(rec.getOr(cfg, "grad_oracle", {}), "mode", "exact")
+  if mode == "blockwise" then exact_grad(loss_fn, params0, inputs, rec.getOr(rec.getOr(cfg, "grad_oracle", {}), "eps", cfg.eps_fd)) else exact_grad(loss_fn, params0, inputs, cfg.eps_fd)
 }
 
 fn update_world_module(world, opt_world, module_name, cfg, trans, rng0, receipt0) {

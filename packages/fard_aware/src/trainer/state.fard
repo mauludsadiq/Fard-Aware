@@ -9,6 +9,7 @@ import("../heads/reward") as reward_head
 import("../heads/continuation") as cont_head
 import("../heads/value") as value_head
 import("../actor/policy") as actor
+import("../grad/oracle") as oracle
 
 fn world_init(seed, h_dim, z_dim, x_dim, a_dim, bins, scale) {
   {

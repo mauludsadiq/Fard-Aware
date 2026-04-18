@@ -1,0 +1,50 @@
+import("std/list") as list
+import("std/rec") as rec
+import("../core/util") as util
+
+fn mode_exact() { "exact" }
+fn mode_blockwise() { "blockwise" }
+
+fn block(name, start, size) {
+  { name: name, start: start, size: size }
+}
+
+fn config(mode, eps, blocks) {
+  { mode: mode, eps: eps, blocks: blocks }
+}
+
+fn default_blockwise_config() {
+  config(mode_blockwise(), 0.0001, [
+    block("world.core", 0, 1),
+    block("world.prior", 1, 1),
+    block("world.posterior", 2, 1),
+    block("world.obs", 3, 1),
+    block("world.reward", 4, 1),
+    block("world.cont", 5, 1),
+    block("actor", 6, 1),
+    block("critic", 7, 1)
+  ])
+}
+
+fn block_count(cfg) {
+  list.len(rec.getOr(cfg, "blocks", []))
+}
+
+fn oracle_summary(cfg) {
+  {
+    mode: rec.getOr(cfg, "mode", mode_exact()),
+    eps: rec.getOr(cfg, "eps", 0.0001),
+    block_count: block_count(cfg),
+    blocks: rec.getOr(cfg, "blocks", [])
+  }
+}
+
+export {
+  mode_exact,
+  mode_blockwise,
+  block,
+  config,
+  default_blockwise_config,
+  block_count,
+  oracle_summary
+}
