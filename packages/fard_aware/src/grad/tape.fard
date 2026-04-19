@@ -1,6 +1,7 @@
 import("std/list") as list
 import("../params/schema") as ps
 import("../core/util") as util
+import("std/str") as str
 
 fn fill_block(size, v) {
   list.map(util.range0(size), fn(_) { v })
@@ -17,20 +18,44 @@ fn square_wave(idx, stride) {
   if ((idx / stride) % 2) == 0 then 1.0 else -1.0
 }
 
+fn sign_basis(vals) {
+  let raw = list.map(vals, fn(x) {
+    if x < 0.0 then -1.0 else (if x > 0.0 then 1.0 else 0.0)
+  })
+  if l1_norm(raw) == 0.0 then
+    list.map(util.range0(list.len(vals)), fn(i) { if i % 2 == 0 then 1.0 else -1.0 })
+  else
+    raw
+}
+
 fn basis_dirs(n) {
   let idx = util.range0(n)
-
   let a = list.map(idx, fn(_) { 1.0 })
   let b = list.map(idx, fn(i) { square_wave(i, 1) })
   let c = list.map(idx, fn(i) { square_wave(i, 2) })
   let d = list.map(idx, fn(i) { square_wave(i, 4) })
-
   let bc = list.map(idx, fn(i) { list.get(b, i) * list.get(c, i) })
   let bd = list.map(idx, fn(i) { list.get(b, i) * list.get(d, i) })
   let cd = list.map(idx, fn(i) { list.get(c, i) * list.get(d, i) })
   let bcd = list.map(idx, fn(i) { list.get(b, i) * list.get(c, i) * list.get(d, i) })
-
   [a, b, c, d, bc, bd, cd, bcd]
+}
+
+fn conditioned_basis_dirs(vals) {
+  let n = list.len(vals)
+  let idx = util.range0(n)
+
+  let a = list.map(idx, fn(_) { 1.0 })
+  let s = sign_basis(vals)
+  let b = list.map(idx, fn(i) { square_wave(i, 1) })
+  let c = list.map(idx, fn(i) { square_wave(i, 2) })
+  let d = list.map(idx, fn(i) { square_wave(i, 4) })
+
+  let sb = list.map(idx, fn(i) { list.get(s, i) * list.get(b, i) })
+  let sc = list.map(idx, fn(i) { list.get(s, i) * list.get(c, i) })
+  let sd = list.map(idx, fn(i) { list.get(s, i) * list.get(d, i) })
+
+  [a, s, b, c, d, sb, sc, sd]
 }
 
 fn combine_dirs(dirs, gs) {
@@ -58,7 +83,7 @@ fn reverse_blockwise(tape, seed_grad) {
   let grads0 = list.repeat(0.0, list.len(tape.params.values))
   list.fold(tape.params.spec.blocks, grads0, fn(acc, b) {
     let block_vals = ps.get_block(tape.params, b.name)
-    let dirs = basis_dirs(b.size)
+    let dirs = if str.starts_with(b.name, "w_row_") || b.name == "b" then conditioned_basis_dirs(block_vals) else basis_dirs(list.len(block_vals))
     let gs = list.map(dirs, fn(v) {
       let pert = list.map(util.range0(b.size), fn(i) {
         list.get(block_vals, i) + tape.eps * list.get(v, i)
@@ -96,4 +121,4 @@ fn digest_tape(tape) {
   util.digest({ params: tape.params.values, inputs: tape.inputs, eps: tape.eps })
 }
 
-export { build_tape, reverse, reverse_blockwise, grad, grad_blockwise, digest_tape, l1_norm, basis_dirs, combine_dirs, square_wave }
+export { build_tape, reverse, reverse_blockwise, grad, grad_blockwise, digest_tape, l1_norm, square_wave, sign_basis, conditioned_basis_dirs, combine_dirs }
