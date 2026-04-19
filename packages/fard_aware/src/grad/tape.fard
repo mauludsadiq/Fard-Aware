@@ -13,14 +13,24 @@ fn l1_norm(xs) {
   })
 }
 
+fn square_wave(idx, stride) {
+  if ((idx / stride) % 2) == 0 then 1.0 else -1.0
+}
+
 fn basis_dirs(n) {
   let idx = util.range0(n)
-  let v1 = list.map(idx, fn(_) { 1.0 })
-  let v2 = list.map(idx, fn(i) { if i % 2 == 0 then 1.0 else -1.0 })
-  let half = n / 2
-  let v3 = list.map(idx, fn(i) { if i < half then 1.0 else -1.0 })
-  let v4 = list.map(idx, fn(i) { if i % 3 == 0 then 1.0 else 0.0 })
-  [v1, v2, v3, v4]
+
+  let a = list.map(idx, fn(_) { 1.0 })
+  let b = list.map(idx, fn(i) { square_wave(i, 1) })
+  let c = list.map(idx, fn(i) { square_wave(i, 2) })
+  let d = list.map(idx, fn(i) { square_wave(i, 4) })
+
+  let bc = list.map(idx, fn(i) { list.get(b, i) * list.get(c, i) })
+  let bd = list.map(idx, fn(i) { list.get(b, i) * list.get(d, i) })
+  let cd = list.map(idx, fn(i) { list.get(c, i) * list.get(d, i) })
+  let bcd = list.map(idx, fn(i) { list.get(b, i) * list.get(c, i) * list.get(d, i) })
+
+  [a, b, c, d, bc, bd, cd, bcd]
 }
 
 fn combine_dirs(dirs, gs) {
@@ -86,4 +96,4 @@ fn digest_tape(tape) {
   util.digest({ params: tape.params.values, inputs: tape.inputs, eps: tape.eps })
 }
 
-export { build_tape, reverse, reverse_blockwise, grad, grad_blockwise, digest_tape, l1_norm, basis_dirs, combine_dirs }
+export { build_tape, reverse, reverse_blockwise, grad, grad_blockwise, digest_tape, l1_norm, basis_dirs, combine_dirs, square_wave }
