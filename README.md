@@ -306,3 +306,47 @@ The system now has three empirically validated regimes:
 3. 4-direction deterministic blockwise oracle
 
 The next step is 8-direction deterministic blockwise oracle per block to improve fidelity while preserving a substantial speedup over exact mode.
+
+---
+
+## Hybrid Gradient Oracle (Current Best)
+
+FARD-Aware now uses a **hybrid blockwise gradient oracle** with module-class-specific bases.
+
+### Basis Selection
+
+| Block Type | Basis |
+|---|---|
+| Actor (`w_row_*`, `b`) | Parameter-conditioned |
+| Critic (`w_value_row_*`, `b_value_*`) | Orthogonal 8-direction |
+| Other blocks | Orthogonal 8-direction |
+
+### Performance
+
+| Mode | Runtime | Actor Error (mean) | Critic Error (mean) |
+|---|---:|---:|---:|
+| Exact | ~12m | 0 | 0 |
+| Orthogonal 8-dir | ~4m29s | ~0.00380 | ~0.00045 |
+| Hybrid | ~4m33s | **~0.00374** | **~0.00045** |
+
+### Hybrid Run
+
+    fard_run_digest: sha256:dbe11bb7be5e85f13bc6cf04476602ee7e927ba63d93fe4e157ca0e70e3cd468
+    runtime: 4m33.591s
+
+### Observations
+
+- Critic remains in a tight approximation band under orthogonal basis
+- Actor benefits from parameter-conditioned directions
+- Hybrid selection preserves critic fidelity while improving actor
+- Runtime remains in compressed regime (~2.6× faster than exact)
+
+### Conclusion
+
+Hybrid blockwise oracle is the current optimal balance of:
+- determinism
+- speed
+- fidelity
+
+Next step: introduce deviation certification artifacts for governed approximation.
+
